@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { WorkflowInfo } from "@/app/lib/n8n";
 
 const icons: Record<string, string> = {
@@ -21,6 +22,9 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function WorkflowCard({ workflow }: { workflow: WorkflowInfo }) {
+  const [showAll, setShowAll] = useState(false);
+  const visibleExecutions = showAll ? workflow.executions : workflow.executions.slice(0, 5);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
@@ -75,7 +79,7 @@ export default function WorkflowCard({ workflow }: { workflow: WorkflowInfo }) {
           Recent Executions
         </div>
         <div className="flex flex-col gap-1.5">
-          {workflow.executions.slice(0, 5).map((exec) => (
+          {visibleExecutions.map((exec) => (
             <div
               key={exec.id}
               className="flex items-center justify-between text-sm"
@@ -107,6 +111,14 @@ export default function WorkflowCard({ workflow }: { workflow: WorkflowInfo }) {
             <div className="text-sm text-gray-400">No recent executions</div>
           )}
         </div>
+        {workflow.executions.length > 5 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="mt-2 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+          >
+            {showAll ? "Show Less" : `See More (${workflow.executions.length - 5} more)`}
+          </button>
+        )}
       </div>
 
       {workflow.stats.lastRun && (

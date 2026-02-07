@@ -71,7 +71,7 @@ export async function getWorkflows(): Promise<WorkflowInfo[]> {
 
     let executions: WorkflowExecution[] = [];
     try {
-      const execRes = await n8nFetch(`/executions?workflowId=${id}&limit=10`);
+      const execRes = await n8nFetch(`/executions?workflowId=${id}&limit=25`);
       executions = (execRes.data || []).map((e: Record<string, unknown>) => ({
         id: e.id,
         status: e.status,
