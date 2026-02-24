@@ -37,7 +37,12 @@ async function n8nFetch(path: string, options?: { method?: string; body?: object
     ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
     ...(method === "GET" ? { next: { revalidate: 30 } } : { cache: "no-store" }),
   });
-  if (!res.ok) throw new Error(`n8n API error: ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    let detail = "";
+    try { detail = JSON.parse(errText)?.message ?? errText; } catch { detail = errText; }
+    throw new Error(`n8n API error ${res.status}: ${detail}`);
+  }
   // Some endpoints return empty body (204)
   const text = await res.text();
   return text ? JSON.parse(text) : {};
@@ -64,6 +69,8 @@ export interface WorkflowInfo {
     error: number;
     successRate: number;
     lastRun: string | null;
+    monthlyRuns: number;
+    monthlySuccess: number;
   };
 }
 
@@ -78,6 +85,9 @@ export async function toggleWorkflow(id: string, activate: boolean): Promise<voi
   await n8nFetch(`/workflows/${id}/${action}`, { method: "POST" });
 }
 
+// n8n Create Workflow API only accepts these fields — everything else causes a 400
+const WORKFLOW_CREATE_FIELDS = new Set(["name", "nodes", "connections", "settings", "staticData"]);
+
 export async function createSafeCopy(
   originalId: string,
   modifiedWorkflow: Record<string, unknown>,
@@ -86,12 +96,15 @@ export async function createSafeCopy(
   // 1. Deactivate original
   await n8nFetch(`/workflows/${originalId}/deactivate`, { method: "POST" });
 
-  // 2. Create modified copy with a new name
+  // 2. Build the POST body — only the fields n8n accepts
   const originalName = (modifiedWorkflow.name as string) || "Workflow";
   const copyName = `${originalName} (AI Edit — ${new Date().toLocaleDateString()})`;
-  const copyBody: Record<string, unknown> = { ...modifiedWorkflow, name: copyName, active: false };
-  // Remove ID so n8n assigns a new one
-  delete copyBody.id;
+
+  const copyBody: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(modifiedWorkflow)) {
+    if (WORKFLOW_CREATE_FIELDS.has(k)) copyBody[k] = v;
+  }
+  copyBody.name = copyName;
 
   const created = await n8nFetch(`/workflows`, { method: "POST", body: copyBody });
 
@@ -136,6 +149,15 @@ export async function getWorkflows(): Promise<WorkflowInfo[]> {
     const success = executions.filter((e) => e.status === "success").length;
     const error = executions.filter((e) => e.status === "error").length;
 
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const monthlyExecs = executions.filter((e) => {
+      const t = new Date(e.startedAt).getTime();
+      return t >= monthStart;
+    });
+    const monthlyRuns = monthlyExecs.length;
+    const monthlySuccess = monthlyExecs.filter((e) => e.status === "success").length;
+
     results.push({
       id,
       name: WORKFLOW_META[id].name,
@@ -150,6 +172,8 @@ export async function getWorkflows(): Promise<WorkflowInfo[]> {
         error,
         successRate: total > 0 ? Math.round((success / total) * 100) : 0,
         lastRun: executions[0]?.stoppedAt || executions[0]?.startedAt || null,
+        monthlyRuns,
+        monthlySuccess,
       },
     });
   }

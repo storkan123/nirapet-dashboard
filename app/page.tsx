@@ -3,26 +3,53 @@
 import { useCallback, useEffect, useState } from "react";
 import WorkflowCard from "@/app/components/WorkflowCard";
 import { WorkflowInfo } from "@/app/lib/n8n";
+import { CallAnalytics } from "@/app/api/sheets/analytics/route";
 
-const REFRESH_INTERVAL = 30_000; // 30 seconds
+const REFRESH_INTERVAL = 30_000;
+
+// Fixed display order: Call Agent → Blog Creator → Purchases → New Customer
+const DISPLAY_ORDER = [
+  "u4sSYc8PDieJxX_g6VMWl", // AI Voice Agent (Call Agent)
+  "lO1Z5m781nQe3HsPYUTch", // Blog Creator
+  "ETQm3I9t8ypv6V7eYAVyv", // Purchases
+  "LGzQHIALne_MHAHWtdBIQ", // New Customer
+];
+
+function getMonthLabel() {
+  return new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+}
 
 export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
+  const [analytics, setAnalytics] = useState<CallAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const load = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
     try {
-      const res = await fetch("/api/workflows");
-      const json = await res.json();
-      if (json.success) {
-        setWorkflows(json.data);
-        setLastUpdated(new Date());
+      const [wfRes, analyticsRes] = await Promise.all([
+        fetch("/api/workflows"),
+        fetch("/api/sheets/analytics"),
+      ]);
+      const wfJson = await wfRes.json();
+      const analyticsJson = await analyticsRes.json();
+
+      if (wfJson.success) {
+        const sorted = DISPLAY_ORDER
+          .map((id) => wfJson.data.find((w: WorkflowInfo) => w.id === id))
+          .filter(Boolean) as WorkflowInfo[];
+        wfJson.data.forEach((w: WorkflowInfo) => {
+          if (!DISPLAY_ORDER.includes(w.id)) sorted.push(w);
+        });
+        setWorkflows(sorted);
         setError(null);
       } else {
-        setError(json.error);
+        setError(wfJson.error);
+      }
+
+      if (analyticsJson.success) {
+        setAnalytics(analyticsJson.data);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
@@ -41,7 +68,7 @@ export default function WorkflowsPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="inline-block w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <div className="inline-block w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
           <p className="text-gray-500">Loading workflows...</p>
         </div>
       </div>
@@ -57,6 +84,8 @@ export default function WorkflowsPage() {
     );
   }
 
+  const monthLabel = getMonthLabel();
+
   return (
     <div>
       <div className="flex items-end justify-between mb-8">
@@ -66,16 +95,22 @@ export default function WorkflowsPage() {
             Live status of your automation workflows
           </p>
         </div>
-        {lastUpdated && (
-          <p className="text-xs text-gray-400">
-            Auto-refreshes every 30s
-          </p>
-        )}
+        <p className="text-xs text-gray-400">Auto-refreshes every 30s</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {workflows.map((wf) => (
-          <WorkflowCard key={wf.id} workflow={wf} />
-        ))}
+
+      <div className="flex flex-col gap-4">
+        {workflows.map((wf) => {
+          const isMain = wf.id === "u4sSYc8PDieJxX_g6VMWl";
+          return (
+            <WorkflowCard
+              key={wf.id}
+              workflow={wf}
+              isMain={isMain}
+              analytics={isMain ? analytics : null}
+              monthLabel={monthLabel}
+            />
+          );
+        })}
       </div>
     </div>
   );
