@@ -11,6 +11,7 @@ import {
 } from "@/app/lib/n8n";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Provider = "anthropic" | "openai";
 
