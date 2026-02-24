@@ -9,6 +9,7 @@ export default function Nav() {
   const links = [
     { href: "/", label: "Workflows" },
     { href: "/data", label: "Data" },
+    { href: "/assistant", label: "AI Assistant" },
   ];
 
   return (

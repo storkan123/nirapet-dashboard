@@ -26,13 +26,21 @@ const WORKFLOW_META: Record<string, { name: string; description: string; icon: s
 
 const TARGET_WORKFLOW_IDS = Object.keys(WORKFLOW_META);
 
-async function n8nFetch(path: string) {
+async function n8nFetch(path: string, options?: { method?: string; body?: object }) {
+  const method = options?.method ?? "GET";
   const res = await fetch(`${N8N_API_URL}/api/v1${path}`, {
-    headers: { "X-N8N-API-KEY": N8N_API_KEY },
-    next: { revalidate: 30 },
+    method,
+    headers: {
+      "X-N8N-API-KEY": N8N_API_KEY,
+      ...(options?.body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
+    ...(method === "GET" ? { next: { revalidate: 30 } } : { cache: "no-store" }),
   });
   if (!res.ok) throw new Error(`n8n API error: ${res.status}`);
-  return res.json();
+  // Some endpoints return empty body (204)
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
 }
 
 export interface WorkflowExecution {
@@ -57,6 +65,48 @@ export interface WorkflowInfo {
     successRate: number;
     lastRun: string | null;
   };
+}
+
+export { WORKFLOW_META, TARGET_WORKFLOW_IDS };
+
+export async function getWorkflowDetail(id: string): Promise<Record<string, unknown>> {
+  return n8nFetch(`/workflows/${id}`);
+}
+
+export async function toggleWorkflow(id: string, activate: boolean): Promise<void> {
+  const action = activate ? "activate" : "deactivate";
+  await n8nFetch(`/workflows/${id}/${action}`, { method: "POST" });
+}
+
+export async function createSafeCopy(
+  originalId: string,
+  modifiedWorkflow: Record<string, unknown>,
+  changeSummary: string
+): Promise<{ originalId: string; newId: string; changeSummary: string }> {
+  // 1. Deactivate original
+  await n8nFetch(`/workflows/${originalId}/deactivate`, { method: "POST" });
+
+  // 2. Create modified copy with a new name
+  const originalName = (modifiedWorkflow.name as string) || "Workflow";
+  const copyName = `${originalName} (AI Edit — ${new Date().toLocaleDateString()})`;
+  const copyBody: Record<string, unknown> = { ...modifiedWorkflow, name: copyName, active: false };
+  // Remove ID so n8n assigns a new one
+  delete copyBody.id;
+
+  const created = await n8nFetch(`/workflows`, { method: "POST", body: copyBody });
+
+  // 3. Activate the copy
+  await n8nFetch(`/workflows/${created.id}/activate`, { method: "POST" });
+
+  return { originalId, newId: created.id, changeSummary };
+}
+
+export async function restoreOriginal(
+  originalId: string,
+  modifiedCopyId: string
+): Promise<void> {
+  await n8nFetch(`/workflows/${modifiedCopyId}/deactivate`, { method: "POST" });
+  await n8nFetch(`/workflows/${originalId}/activate`, { method: "POST" });
 }
 
 export async function getWorkflows(): Promise<WorkflowInfo[]> {
