@@ -333,14 +333,30 @@ export default function WorkflowCard({
 
   return (
     <div
-      className={`bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow ${
-        isMain ? "p-6" : "p-4"
+      className={`bg-white rounded-2xl border border-gray-200/80 transition-shadow overflow-hidden ${
+        isMain
+          ? "shadow-md hover:shadow-lg"
+          : "shadow-sm hover:shadow-md"
       }`}
     >
+      {/* ── Brand top strip for main card ── */}
+      {isMain && (
+        <div
+          className="h-1.5 w-full"
+          style={{ backgroundColor: "#1e3d2b" }}
+        />
+      )}
+
+      <div className={isMain ? "p-6" : "p-4"}>
       {/* ── Header row ── */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <span className={isMain ? "text-2xl" : "text-xl"}>
+          <span
+            className={`rounded-xl flex items-center justify-center shrink-0 ${
+              isMain ? "text-2xl w-12 h-12" : "text-lg w-9 h-9"
+            }`}
+            style={{ backgroundColor: "#f0f4f1" }}
+          >
             {icons[workflow.icon] || "⚡"}
           </span>
           <div className="min-w-0">
@@ -660,6 +676,7 @@ export default function WorkflowCard({
           </div>
         </div>
       )}
+      </div>{/* end padding wrapper */}
     </div>
   );
 }
