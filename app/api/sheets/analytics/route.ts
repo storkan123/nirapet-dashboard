@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCustomerData } from "@/app/lib/sheets";
 
 export const dynamic = "force-dynamic";
@@ -12,29 +12,43 @@ export interface CallAnalytics {
   sentimentBreakdown: { positive: number; neutral: number; negative: number };
   topObjections: { label: string; count: number }[];
   callOutcomes: { interested: number; not_interested: number; needs_more_info: number; no_decision: number };
+  rangeLabel: string;
 }
 
-export async function GET() {
+function getRangeLabel(range: string, now: Date): string {
+  if (range === "all_time") return "All Time";
+  if (range === "last_3_months") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const startLabel = start.toLocaleString("en-US", { month: "short", year: "numeric" });
+    const endLabel = now.toLocaleString("en-US", { month: "short", year: "numeric" });
+    return `${startLabel} – ${endLabel}`;
+  }
+  return now.toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+export async function GET(request: NextRequest) {
   try {
+    const range = request.nextUrl.searchParams.get("range") ?? "this_month";
     const rows = await getCustomerData();
-
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
 
-    // Filter to current month using the Date column (format: M/D/YYYY or YYYY-MM-DD)
-    const thisMonthRows = rows.filter((row) => {
-      const dateStr = row["Date"] || row["call_date"] || "";
-      if (!dateStr) return true; // include rows without a date (new entries)
-      try {
-        const d = new Date(dateStr);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      } catch {
-        return true;
-      }
-    });
+    // Determine the start date cutoff based on range
+    let filteredRows = rows;
+    if (range !== "all_time") {
+      const monthsBack = range === "last_3_months" ? 2 : 0;
+      const startDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+      filteredRows = rows.filter((row) => {
+        const dateStr = row["Date"] || row["call_date"] || "";
+        if (!dateStr) return false; // exclude undated rows from ranged views
+        try {
+          return new Date(dateStr) >= startDate;
+        } catch {
+          return false;
+        }
+      });
+    }
 
-    const answeredRows = thisMonthRows.filter(
+    const answeredRows = filteredRows.filter(
       (r) => (r["call_status"] || "").toLowerCase() === "answered"
     );
 
@@ -91,17 +105,18 @@ export async function GET() {
     });
 
     const analytics: CallAnalytics = {
-      totalCustomers: thisMonthRows.length,
+      totalCustomers: filteredRows.length,
       callsAnswered: answeredRows.length,
       answerRate:
-        thisMonthRows.length > 0
-          ? Math.round((answeredRows.length / thisMonthRows.length) * 100)
+        filteredRows.length > 0
+          ? Math.round((answeredRows.length / filteredRows.length) * 100)
           : 0,
       avgPurchaseIntent,
       interestBreakdown: interest,
       sentimentBreakdown: sentiment,
       topObjections,
       callOutcomes: outcomes,
+      rangeLabel: getRangeLabel(range, now),
     };
 
     return NextResponse.json({ success: true, data: analytics });

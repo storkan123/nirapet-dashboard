@@ -14,6 +14,13 @@ import {
 } from "recharts";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
+import { TimeRange } from "@/app/page";
+
+const RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: "this_month", label: "This Month" },
+  { value: "last_3_months", label: "Last 3 Months" },
+  { value: "all_time", label: "All Time" },
+];
 
 const icons: Record<string, string> = {
   "user-plus": "👤",
@@ -203,14 +210,16 @@ interface WorkflowCardProps {
   workflow: WorkflowInfo;
   isMain?: boolean;
   analytics?: CallAnalytics | null;
-  monthLabel?: string;
+  range?: TimeRange;
+  onRangeChange?: (r: TimeRange) => void;
 }
 
 export default function WorkflowCard({
   workflow,
   isMain = false,
   analytics,
-  monthLabel,
+  range = "this_month",
+  onRangeChange,
 }: WorkflowCardProps) {
   const [showAll, setShowAll] = useState(false);
   const visibleExecutions = showAll
@@ -323,10 +332,27 @@ export default function WorkflowCard({
       {/* ── Call Agent monthly analytics section ── */}
       {isMain && analytics && (
         <div className="mt-5 pt-5 border-t border-gray-100">
+          {/* Filter pills */}
+          <div className="flex items-center gap-2 mb-4">
+            {RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => onRangeChange?.(opt.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  range === opt.value
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           {/* Summary bar */}
           <div className="flex items-center justify-between mb-5">
             <h4 className="text-sm font-semibold text-gray-700">
-              {monthLabel || "This Month"}
+              {analytics.rangeLabel}
             </h4>
             <div className="flex items-center gap-5 text-xs text-gray-500">
               <span>
