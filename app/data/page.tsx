@@ -29,12 +29,56 @@ const callStatusColors: Record<string, string> = {
   "no-answer": "bg-yellow-50 text-yellow-700",
   busy: "bg-red-50 text-red-700",
   failed: "bg-red-50 text-red-700",
+  do_not_call: "bg-gray-100 text-gray-500",
 };
 
 const contentStatusColors: Record<string, string> = {
   completed: "bg-emerald-50 text-emerald-700",
   incomplete: "bg-yellow-50 text-yellow-700",
 };
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function getMonthLabel(row: SheetRow): string {
+  const dateStr = row["call_date"] || row["Date"] || "";
+  if (!dateStr) return "Unknown";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "Unknown";
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function getMonthSortKey(label: string): number {
+  const parts = label.split(" ");
+  if (parts.length < 2) return 0;
+  const month = MONTH_NAMES.indexOf(parts[0]);
+  const year = parseInt(parts[1], 10);
+  if (month < 0 || isNaN(year)) return 0;
+  return year * 100 + month;
+}
+
+function groupByMonth(rows: SheetRow[]): { label: string; rows: SheetRow[] }[] {
+  const map = new Map<string, SheetRow[]>();
+  for (const row of rows) {
+    const label = getMonthLabel(row);
+    if (!map.has(label)) map.set(label, []);
+    map.get(label)!.push(row);
+  }
+  return Array.from(map.entries())
+    .map(([label, rows]) => ({ label, rows }))
+    .sort((a, b) => {
+      if (a.label === "Unknown") return 1;
+      if (b.label === "Unknown") return -1;
+      return getMonthSortKey(b.label) - getMonthSortKey(a.label);
+    });
+}
+
+function currentMonthLabel(): string {
+  const now = new Date();
+  return `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+}
 
 export default function DataPage() {
   const [activeTab, setActiveTab] = useState<"customers" | "content">(
@@ -44,6 +88,7 @@ export default function DataPage() {
   const [content, setContent] = useState<SheetRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
 
   const load = useCallback(async (isInitial = false) => {
     if (isInitial) {
@@ -75,6 +120,29 @@ export default function DataPage() {
     const interval = setInterval(() => load(false), REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [load]);
+
+  // Auto-open current month when customers load
+  useEffect(() => {
+    if (customers.length > 0) {
+      setOpenMonths((prev) => {
+        const next = new Set(prev);
+        next.add(currentMonthLabel());
+        return next;
+      });
+    }
+  }, [customers.length]);
+
+  function toggleMonth(label: string) {
+    setOpenMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
+  const groups = groupByMonth(customers);
+  const thisMonth = currentMonthLabel();
 
   return (
     <div>
@@ -138,12 +206,74 @@ export default function DataPage() {
               <p className="text-red-500 text-sm mt-1">{error}</p>
             </div>
           ) : activeTab === "customers" ? (
-            <SheetTable
-              data={customers}
-              columns={customerColumns}
-              statusKey="call_status"
-              statusColors={callStatusColors}
-            />
+            groups.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-lg mb-1">No data available</p>
+                <p className="text-sm">Google Sheets credentials may not be configured.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {groups.map(({ label, rows }) => {
+                  const isCurrentMonth = label === thisMonth;
+                  const isOpen = openMonths.has(label);
+                  return (
+                    <div
+                      key={label}
+                      className={`rounded-xl border overflow-hidden ${
+                        isCurrentMonth ? "border-emerald-200" : "border-gray-200"
+                      }`}
+                    >
+                      {/* Month header */}
+                      <button
+                        onClick={() => toggleMonth(label)}
+                        className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
+                          isCurrentMonth
+                            ? "bg-emerald-50 hover:bg-emerald-100/70"
+                            : "bg-gray-50 hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-block transition-transform text-xs ${
+                              isOpen ? "rotate-90" : ""
+                            } ${isCurrentMonth ? "text-emerald-600" : "text-gray-400"}`}
+                          >
+                            ▶
+                          </span>
+                          <span
+                            className={`font-semibold text-sm ${
+                              isCurrentMonth ? "text-emerald-700" : "text-gray-600"
+                            }`}
+                          >
+                            {label}
+                          </span>
+                          {isCurrentMonth && (
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {rows.length} record{rows.length !== 1 ? "s" : ""}
+                        </span>
+                      </button>
+
+                      {/* Rows */}
+                      {isOpen && (
+                        <div className="border-t border-gray-100">
+                          <SheetTable
+                            data={rows}
+                            columns={customerColumns}
+                            statusKey="call_status"
+                            statusColors={callStatusColors}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : (
             <SheetTable
               data={content}

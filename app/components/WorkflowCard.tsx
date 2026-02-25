@@ -7,14 +7,18 @@ import {
   Cell,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
 import { PurchaseStats } from "@/app/api/sheets/purchase-stats/route";
+import { MonthlyPurchase } from "@/app/api/sheets/purchase-history/route";
 import { TimeRange } from "@/app/lib/types";
 
 const RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
@@ -219,6 +223,55 @@ const OUTCOME_COLORS: Record<string, string> = {
   not_interested: "#ef4444",
 };
 
+// ── Purchase Line Chart ───────────────────────────────────────────────────────
+function PurchaseLineChart({ data }: { data: MonthlyPurchase[] }) {
+  const hasData = data.some((d) => d.total > 0);
+  if (!hasData)
+    return (
+      <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+        No purchase data yet
+      </div>
+    );
+
+  return (
+    <ResponsiveContainer width="100%" height={160}>
+      <LineChart data={data} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+        <XAxis
+          dataKey="month"
+          tick={{ fontSize: 11, fill: "#9ca3af" }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v: string) => v.split(" ")[0]} // show "Jan", "Feb" etc.
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: "#9ca3af" }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v: number) => `$${v}`}
+        />
+        <Tooltip
+          contentStyle={{
+            fontSize: 12,
+            border: "none",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            borderRadius: 8,
+          }}
+          formatter={(value) => [`$${Number(value).toLocaleString()}`, "Revenue"]}
+        />
+        <Line
+          type="monotone"
+          dataKey="total"
+          stroke="#10b981"
+          strokeWidth={2.5}
+          dot={{ fill: "#10b981", r: 4, strokeWidth: 0 }}
+          activeDot={{ r: 6, strokeWidth: 0 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── Loading skeleton ─────────────────────────────────────────────────────────
 function AnalyticsSkeleton() {
   return (
@@ -252,6 +305,7 @@ interface WorkflowCardProps {
   range?: TimeRange;
   onRangeChange?: (r: TimeRange) => void;
   purchaseStats?: PurchaseStats | null;
+  purchaseHistory?: MonthlyPurchase[] | null;
 }
 
 export default function WorkflowCard({
@@ -261,6 +315,7 @@ export default function WorkflowCard({
   range = "this_month",
   onRangeChange,
   purchaseStats,
+  purchaseHistory,
 }: WorkflowCardProps) {
   const [showExecs, setShowExecs] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -415,6 +470,16 @@ export default function WorkflowCard({
               <div className="text-xs text-blue-400">{purchaseStats.allTimeCount} orders</div>
             </div>
           </div>
+
+          {/* Line chart: purchases over last 6 months */}
+          {purchaseHistory && purchaseHistory.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                Revenue — Last 6 Months
+              </p>
+              <PurchaseLineChart data={purchaseHistory} />
+            </div>
+          )}
         </div>
       )}
 

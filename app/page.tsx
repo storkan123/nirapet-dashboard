@@ -5,13 +5,14 @@ import WorkflowCard from "@/app/components/WorkflowCard";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
 import { PurchaseStats } from "@/app/api/sheets/purchase-stats/route";
+import { MonthlyPurchase } from "@/app/api/sheets/purchase-history/route";
 import { TimeRange } from "@/app/lib/types";
 
 export type { TimeRange };
 
 const REFRESH_INTERVAL = 30_000;
 
-// Fixed display order: Call Agent → Blog Creator → Purchases → New Customer
+// Fixed display order: Call Agent → Purchases → Blog Creator → New Customer
 const DISPLAY_ORDER = [
   "u4sSYc8PDieJxX_g6VMWl", // AI Voice Agent (Call Agent)
   "ETQm3I9t8ypv6V7eYAVyv", // Purchases
@@ -23,6 +24,7 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
   const [analytics, setAnalytics] = useState<CallAnalytics | null>(null);
   const [purchaseStats, setPurchaseStats] = useState<PurchaseStats | null>(null);
+  const [purchaseHistory, setPurchaseHistory] = useState<MonthlyPurchase[] | null>(null);
   const [range, setRange] = useState<TimeRange>("this_month");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,14 +44,16 @@ export default function WorkflowsPage() {
   const load = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
     try {
-      const [wfRes, analyticsRes, purchaseRes] = await Promise.all([
+      const [wfRes, analyticsRes, purchaseRes, historyRes] = await Promise.all([
         fetch("/api/workflows"),
         fetch(`/api/sheets/analytics?range=${rangeRef.current}`),
         fetch("/api/sheets/purchase-stats"),
+        fetch("/api/sheets/purchase-history"),
       ]);
       const wfJson = await wfRes.json();
       const analyticsJson = await analyticsRes.json();
       const purchaseJson = await purchaseRes.json();
+      const historyJson = await historyRes.json();
 
       if (wfJson.success) {
         const sorted = DISPLAY_ORDER
@@ -66,6 +70,7 @@ export default function WorkflowsPage() {
 
       if (analyticsJson.success) setAnalytics(analyticsJson.data);
       if (purchaseJson.success) setPurchaseStats(purchaseJson.data);
+      if (historyJson.success) setPurchaseHistory(historyJson.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -129,6 +134,7 @@ export default function WorkflowsPage() {
               range={range}
               onRangeChange={setRange}
               purchaseStats={isPurchases ? purchaseStats : null}
+              purchaseHistory={isPurchases ? purchaseHistory : null}
             />
           );
         })}
