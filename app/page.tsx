@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowCard from "@/app/components/WorkflowCard";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
+import { PurchaseStats } from "@/app/api/sheets/purchase-stats/route";
 import { TimeRange } from "@/app/lib/types";
 
 export type { TimeRange };
@@ -21,6 +22,7 @@ const DISPLAY_ORDER = [
 export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
   const [analytics, setAnalytics] = useState<CallAnalytics | null>(null);
+  const [purchaseStats, setPurchaseStats] = useState<PurchaseStats | null>(null);
   const [range, setRange] = useState<TimeRange>("this_month");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +42,14 @@ export default function WorkflowsPage() {
   const load = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
     try {
-      const [wfRes, analyticsRes] = await Promise.all([
+      const [wfRes, analyticsRes, purchaseRes] = await Promise.all([
         fetch("/api/workflows"),
         fetch(`/api/sheets/analytics?range=${rangeRef.current}`),
+        fetch("/api/sheets/purchase-stats"),
       ]);
       const wfJson = await wfRes.json();
       const analyticsJson = await analyticsRes.json();
+      const purchaseJson = await purchaseRes.json();
 
       if (wfJson.success) {
         const sorted = DISPLAY_ORDER
@@ -61,6 +65,7 @@ export default function WorkflowsPage() {
       }
 
       if (analyticsJson.success) setAnalytics(analyticsJson.data);
+      if (purchaseJson.success) setPurchaseStats(purchaseJson.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -114,6 +119,7 @@ export default function WorkflowsPage() {
       <div className="flex flex-col gap-4">
         {workflows.map((wf) => {
           const isMain = wf.id === "u4sSYc8PDieJxX_g6VMWl";
+          const isPurchases = wf.id === "ETQm3I9t8ypv6V7eYAVyv";
           return (
             <WorkflowCard
               key={wf.id}
@@ -122,6 +128,7 @@ export default function WorkflowsPage() {
               analytics={isMain ? analytics : null}
               range={range}
               onRangeChange={setRange}
+              purchaseStats={isPurchases ? purchaseStats : null}
             />
           );
         })}

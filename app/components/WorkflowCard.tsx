@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
+import { PurchaseStats } from "@/app/api/sheets/purchase-stats/route";
 import { TimeRange } from "@/app/lib/types";
 
 const RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
@@ -250,6 +251,7 @@ interface WorkflowCardProps {
   analytics?: CallAnalytics | null;
   range?: TimeRange;
   onRangeChange?: (r: TimeRange) => void;
+  purchaseStats?: PurchaseStats | null;
 }
 
 export default function WorkflowCard({
@@ -258,6 +260,7 @@ export default function WorkflowCard({
   analytics,
   range = "this_month",
   onRangeChange,
+  purchaseStats,
 }: WorkflowCardProps) {
   const [showExecs, setShowExecs] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -375,6 +378,43 @@ export default function WorkflowCard({
             </span>{" "}
             successful
           </span>
+        </div>
+      )}
+
+      {/* ── Purchase revenue stats (Purchases card only) ── */}
+      {purchaseStats && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Revenue Tracked
+            </p>
+            <p className="text-xs text-gray-400 italic">
+              Purchases made after AI Voice Agent calls
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-gray-900">
+                ${purchaseStats.thisMonth.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">This Month</div>
+              <div className="text-xs text-gray-400">{purchaseStats.thisMonthCount} orders</div>
+            </div>
+            <div className="bg-emerald-50 rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-emerald-700">
+                ${purchaseStats.last3Months.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-emerald-600 mt-0.5">Last 3 Months</div>
+              <div className="text-xs text-emerald-400">{purchaseStats.last3MonthsCount} orders</div>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3 text-center">
+              <div className="text-xl font-bold text-blue-700">
+                ${purchaseStats.allTime.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-blue-600 mt-0.5">All Time</div>
+              <div className="text-xs text-blue-400">{purchaseStats.allTimeCount} orders</div>
+            </div>
+          </div>
         </div>
       )}
 

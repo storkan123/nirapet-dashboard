@@ -8,12 +8,12 @@ const REFRESH_INTERVAL = 30_000; // 30 seconds
 
 const customerColumns = [
   { key: "Name", label: "Name" },
-  { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "Purchases", label: "Purchases" },
   { key: "call_status", label: "Call Status" },
-  { key: "call time", label: "Call Time" },
-  { key: "transcript_summary", label: "Summary", width: "200px" },
+  { key: "transcript", label: "Transcript", expandable: true },
+  { key: "objection_detail", label: "Objection Detail", expandable: true },
+  { key: "customer_persona", label: "Customer Persona", expandable: true },
 ];
 
 const contentColumns = [
@@ -141,7 +141,6 @@ export default function DataPage() {
             <SheetTable
               data={customers}
               columns={customerColumns}
-              expandKey="transcript"
               statusKey="call_status"
               statusColors={callStatusColors}
             />
@@ -149,7 +148,6 @@ export default function DataPage() {
             <SheetTable
               data={content}
               columns={contentColumns}
-              expandKey="Article"
               statusKey="Status"
               statusColors={contentStatusColors}
             />
