@@ -10,7 +10,7 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "Nira Pet Dashboard",
-  description: "Workflow automation dashboard for Nira Pet",
+  description: "Live workflow automation dashboard for Nira Pet",
 };
 
 export default function RootLayout({
