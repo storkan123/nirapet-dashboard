@@ -57,14 +57,14 @@ function SentimentDonut({ data }: { data: CallAnalytics["sentimentBreakdown"] })
 
   return (
     <div className="flex flex-col items-center">
-      <ResponsiveContainer width="100%" height={120}>
+      <ResponsiveContainer width="100%" height={130}>
         <PieChart>
           <Pie
             data={chartData}
             cx="50%"
             cy="50%"
-            innerRadius={32}
-            outerRadius={52}
+            innerRadius={36}
+            outerRadius={56}
             dataKey="value"
             strokeWidth={2}
           >
@@ -107,7 +107,7 @@ function InterestBars({ data }: { data: CallAnalytics["interestBreakdown"] }) {
     );
 
   return (
-    <ResponsiveContainer width="100%" height={140}>
+    <ResponsiveContainer width="100%" height={150}>
       <BarChart
         data={chartData}
         barSize={24}
@@ -153,20 +153,20 @@ function IntentGauge({ score }: { score: number }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-2 pt-4">
       <div
-        className="text-4xl font-bold"
+        className="text-5xl font-bold"
         style={{ color: score > 0 ? color : "#d1d5db" }}
       >
         {score > 0 ? score.toFixed(1) : "—"}
       </div>
       <div className="text-xs text-gray-400">out of 10</div>
-      <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+      <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
         <div
-          className="h-2.5 rounded-full transition-all duration-700"
+          className="h-3 rounded-full transition-all duration-700"
           style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
       <div
-        className="text-xs font-medium"
+        className="text-sm font-semibold"
         style={{ color: score > 0 ? color : "#9ca3af" }}
       >
         {label} Intent
@@ -175,25 +175,31 @@ function IntentGauge({ score }: { score: number }) {
   );
 }
 
-// ── Top Objections ───────────────────────────────────────────────────────────
-function ObjectionBars({
-  objections,
+// ── Horizontal bar chart (shared by outcomes + objections) ───────────────────
+function HorizBars({
+  items,
+  colorFn,
 }: {
-  objections: CallAnalytics["topObjections"];
+  items: { label: string; count: number }[];
+  colorFn?: (label: string) => string;
 }) {
-  if (objections.length === 0)
-    return <p className="text-sm text-gray-400">No objections recorded yet</p>;
-
-  const max = objections[0].count;
+  if (items.length === 0)
+    return <p className="text-sm text-gray-400">No data yet</p>;
+  const max = items[0].count;
   return (
     <div className="flex flex-col gap-2.5 w-full">
-      {objections.map((o) => (
+      {items.map((o) => (
         <div key={o.label} className="flex items-center gap-3">
-          <div className="w-28 text-xs text-gray-600 truncate shrink-0">{o.label}</div>
+          <div className="w-28 text-xs text-gray-600 truncate shrink-0 capitalize">
+            {o.label.replace(/_/g, " ")}
+          </div>
           <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-indigo-400 transition-all duration-700"
-              style={{ width: `${(o.count / max) * 100}%` }}
+              className="h-2 rounded-full transition-all duration-700"
+              style={{
+                width: `${(o.count / max) * 100}%`,
+                backgroundColor: colorFn ? colorFn(o.label) : "#818cf8",
+              }}
             />
           </div>
           <div className="text-xs font-medium text-gray-500 w-4 text-right shrink-0">
@@ -201,6 +207,38 @@ function ObjectionBars({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const OUTCOME_COLORS: Record<string, string> = {
+  interested: "#10b981",
+  needs_more_info: "#f59e0b",
+  no_decision: "#6b7280",
+  not_interested: "#ef4444",
+};
+
+// ── Loading skeleton ─────────────────────────────────────────────────────────
+function AnalyticsSkeleton() {
+  return (
+    <div className="animate-pulse space-y-5">
+      {/* KPI row */}
+      <div className="grid grid-cols-4 gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="bg-gray-100 rounded-xl h-20" />
+        ))}
+      </div>
+      {/* Charts row */}
+      <div className="grid grid-cols-3 gap-6">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="bg-gray-100 rounded-xl h-40" />
+        ))}
+      </div>
+      {/* Bottom row */}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="bg-gray-100 rounded-xl h-28" />
+        <div className="bg-gray-100 rounded-xl h-28" />
+      </div>
     </div>
   );
 }
@@ -221,10 +259,19 @@ export default function WorkflowCard({
   range = "this_month",
   onRangeChange,
 }: WorkflowCardProps) {
+  const [showExecs, setShowExecs] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const visibleExecutions = showAll
     ? workflow.executions
-    : workflow.executions.slice(0, 4);
+    : workflow.executions.slice(0, 5);
+
+  // Build call outcomes as sorted array for HorizBars
+  const outcomesItems = analytics
+    ? Object.entries(analytics.callOutcomes)
+        .map(([label, count]) => ({ label, count }))
+        .filter((o) => o.count > 0)
+        .sort((a, b) => b.count - a.count)
+    : [];
 
   return (
     <div
@@ -241,7 +288,7 @@ export default function WorkflowCard({
           <div className="min-w-0">
             <h3
               className={`font-semibold text-gray-900 ${
-                isMain ? "text-lg" : "text-base"
+                isMain ? "text-xl" : "text-base"
               }`}
             >
               {workflow.name}
@@ -251,25 +298,9 @@ export default function WorkflowCard({
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
-          {/* Stats */}
-          <div className="hidden sm:flex items-center gap-3 text-sm">
-            <span className="text-gray-400">
-              <span className="font-semibold text-gray-700">{workflow.stats.total}</span>{" "}
-              runs
-            </span>
-            <span className="font-semibold text-emerald-600">
-              {workflow.stats.successRate}%
-            </span>
-            {workflow.stats.error > 0 && (
-              <span className="font-semibold text-red-500">
-                {workflow.stats.error} err
-              </span>
-            )}
-          </div>
-
           {/* Execution dots */}
           <div className="hidden md:flex items-center gap-1">
-            {workflow.executions.slice(0, 6).map((exec) => (
+            {workflow.executions.slice(0, 8).map((exec) => (
               <span
                 key={exec.id}
                 title={exec.status}
@@ -285,6 +316,24 @@ export default function WorkflowCard({
               />
             ))}
           </div>
+
+          {/* Stats (non-main) */}
+          {!isMain && (
+            <div className="hidden sm:flex items-center gap-3 text-sm">
+              <span className="text-gray-400">
+                <span className="font-semibold text-gray-700">{workflow.stats.total}</span>{" "}
+                runs
+              </span>
+              <span className="font-semibold text-emerald-600">
+                {workflow.stats.successRate}%
+              </span>
+              {workflow.stats.error > 0 && (
+                <span className="font-semibold text-red-500">
+                  {workflow.stats.error} err
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Last run */}
           {workflow.stats.lastRun && (
@@ -303,7 +352,7 @@ export default function WorkflowCard({
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
-                workflow.active ? "bg-emerald-500" : "bg-gray-400"
+                workflow.active ? "bg-emerald-500 animate-pulse" : "bg-gray-400"
               }`}
             />
             {workflow.active ? "Active" : "Inactive"}
@@ -311,7 +360,7 @@ export default function WorkflowCard({
         </div>
       </div>
 
-      {/* ── Monthly note for non-main cards ── */}
+      {/* ── Monthly note for secondary cards ── */}
       {!isMain && workflow.stats.monthlyRuns > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-500">
           <span>
@@ -329,134 +378,181 @@ export default function WorkflowCard({
         </div>
       )}
 
-      {/* ── Call Agent monthly analytics section ── */}
-      {isMain && analytics && (
-        <div className="mt-5 pt-5 border-t border-gray-100">
-          {/* Filter pills */}
-          <div className="flex items-center gap-2 mb-4">
-            {RANGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onRangeChange?.(opt.value)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  range === opt.value
-                    ? "bg-emerald-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Summary bar */}
-          <div className="flex items-center justify-between mb-5">
-            <h4 className="text-sm font-semibold text-gray-700">
-              {analytics.rangeLabel}
-            </h4>
-            <div className="flex items-center gap-5 text-xs text-gray-500">
-              <span>
-                <span className="font-semibold text-gray-800">
-                  {analytics.callsAnswered}
-                </span>{" "}
-                answered
-              </span>
-              <span>
-                <span className="font-semibold text-gray-800">
-                  {analytics.answerRate}%
-                </span>{" "}
-                answer rate
-              </span>
-              <span>
-                <span className="font-semibold text-gray-800">
-                  {analytics.totalCustomers}
-                </span>{" "}
-                total leads
-              </span>
-            </div>
-          </div>
-
-          {/* Charts — 3 columns */}
-          <div className="grid grid-cols-3 gap-6 mb-5">
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 text-center">
-                Sentiment
-              </p>
-              <SentimentDonut data={analytics.sentimentBreakdown} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 text-center">
-                Interest Level
-              </p>
-              <InterestBars data={analytics.interestBreakdown} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 text-center">
-                Purchase Intent
-              </p>
-              <IntentGauge score={analytics.avgPurchaseIntent} />
-            </div>
-          </div>
-
-          {/* Top objections */}
-          <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Top Objections
-            </p>
-            <ObjectionBars objections={analytics.topObjections} />
-          </div>
-        </div>
-      )}
-
-      {/* ── Executions list (main card only) ── */}
+      {/* ── Call Agent analytics dashboard ── */}
       {isMain && (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="text-xs font-medium text-gray-400 mb-2">
-            Recent Executions
-          </div>
-          <div className="flex flex-col gap-1">
-            {visibleExecutions.map((exec) => (
-              <div
-                key={exec.id}
-                className="flex items-center justify-between text-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      exec.status === "success"
-                        ? "bg-emerald-500"
-                        : exec.status === "error"
-                        ? "bg-red-500"
-                        : exec.status === "running"
-                        ? "bg-blue-500"
-                        : "bg-yellow-500"
-                    }`}
-                  />
-                  <span className="text-gray-700 capitalize">{exec.status}</span>
-                </div>
-                <span className="text-gray-400 text-xs">
-                  {exec.stoppedAt
-                    ? timeAgo(exec.stoppedAt)
-                    : exec.startedAt
-                    ? "running..."
-                    : "—"}
-                </span>
-              </div>
-            ))}
-            {workflow.executions.length === 0 && (
-              <div className="text-sm text-gray-400">No recent executions</div>
+        <div className="mt-5 pt-5 border-t border-gray-100">
+          {/* Filter pills + range label */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              {RANGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => onRangeChange?.(opt.value)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    range === opt.value
+                      ? "bg-emerald-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {analytics && (
+              <span className="text-sm font-semibold text-gray-500">
+                {analytics.rangeLabel}
+              </span>
             )}
           </div>
-          {workflow.executions.length > 4 && (
-            <button
-              onClick={() => setShowAll(!showAll)}
-              className="mt-2 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-            >
-              {showAll
-                ? "Show Less"
-                : `See More (${workflow.executions.length - 4} more)`}
-            </button>
+
+          {/* Show skeleton while loading */}
+          {!analytics && <AnalyticsSkeleton />}
+
+          {analytics && (
+            <>
+              {/* KPI boxes */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-gray-900">
+                    {analytics.totalCustomers}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">Total Leads</div>
+                </div>
+                <div className="bg-emerald-50 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-emerald-700">
+                    {analytics.callsAnswered}
+                  </div>
+                  <div className="text-xs text-emerald-600 mt-1">Calls Answered</div>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-blue-700">
+                    {analytics.answerRate}%
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">Answer Rate</div>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-amber-700">
+                    {analytics.avgPurchaseIntent > 0
+                      ? analytics.avgPurchaseIntent.toFixed(1)
+                      : "—"}
+                  </div>
+                  <div className="text-xs text-amber-600 mt-1">Avg Intent Score</div>
+                  {analytics.avgPurchaseIntent > 0 && (
+                    <div className="mt-2 bg-amber-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-1.5 rounded-full bg-amber-500 transition-all duration-700"
+                        style={{
+                          width: `${(analytics.avgPurchaseIntent / 10) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Charts row */}
+              <div className="grid grid-cols-3 gap-6 mb-6">
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 text-center">
+                    Sentiment
+                  </p>
+                  <SentimentDonut data={analytics.sentimentBreakdown} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 text-center">
+                    Interest Level
+                  </p>
+                  <InterestBars data={analytics.interestBreakdown} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 text-center">
+                    Purchase Intent
+                  </p>
+                  <IntentGauge score={analytics.avgPurchaseIntent} />
+                </div>
+              </div>
+
+              {/* Bottom: outcomes + objections side by side */}
+              <div className="grid grid-cols-2 gap-6 border-t border-gray-100 pt-5">
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                    Call Outcomes
+                  </p>
+                  <HorizBars
+                    items={outcomesItems}
+                    colorFn={(label) => OUTCOME_COLORS[label] ?? "#818cf8"}
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                    Top Objections
+                  </p>
+                  <HorizBars items={analytics.topObjections} />
+                </div>
+              </div>
+            </>
           )}
+
+          {/* Recent executions (collapsible) */}
+          <div className="mt-5 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => setShowExecs(!showExecs)}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <span
+                className={`inline-block transition-transform ${showExecs ? "rotate-90" : ""}`}
+              >
+                ▶
+              </span>
+              Recent Executions
+            </button>
+
+            {showExecs && (
+              <div className="mt-3 flex flex-col gap-1">
+                {visibleExecutions.map((exec) => (
+                  <div
+                    key={exec.id}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          exec.status === "success"
+                            ? "bg-emerald-500"
+                            : exec.status === "error"
+                            ? "bg-red-500"
+                            : exec.status === "running"
+                            ? "bg-blue-500"
+                            : "bg-yellow-500"
+                        }`}
+                      />
+                      <span className="text-gray-700 capitalize">{exec.status}</span>
+                    </div>
+                    <span className="text-gray-400 text-xs">
+                      {exec.stoppedAt
+                        ? timeAgo(exec.stoppedAt)
+                        : exec.startedAt
+                        ? "running..."
+                        : "—"}
+                    </span>
+                  </div>
+                ))}
+                {workflow.executions.length === 0 && (
+                  <div className="text-sm text-gray-400">No recent executions</div>
+                )}
+                {workflow.executions.length > 5 && (
+                  <button
+                    onClick={() => setShowAll(!showAll)}
+                    className="mt-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    {showAll
+                      ? "Show less"
+                      : `${workflow.executions.length - 5} more`}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
