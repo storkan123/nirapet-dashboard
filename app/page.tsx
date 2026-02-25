@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowCard from "@/app/components/WorkflowCard";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
+import { TimeRange } from "@/app/lib/types";
+
+export type { TimeRange };
 
 const REFRESH_INTERVAL = 30_000;
-
-export type TimeRange = "this_month" | "last_3_months" | "all_time";
 
 // Fixed display order: Call Agent → Blog Creator → Purchases → New Customer
 const DISPLAY_ORDER = [

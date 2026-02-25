@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { WorkflowInfo } from "@/app/lib/n8n";
 import { CallAnalytics } from "@/app/api/sheets/analytics/route";
-import { TimeRange } from "@/app/page";
+import { TimeRange } from "@/app/lib/types";
 
 const RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "this_month", label: "This Month" },
