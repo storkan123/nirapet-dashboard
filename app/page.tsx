@@ -14,8 +14,8 @@ const REFRESH_INTERVAL = 30_000;
 // Fixed display order: Call Agent → Blog Creator → Purchases → New Customer
 const DISPLAY_ORDER = [
   "u4sSYc8PDieJxX_g6VMWl", // AI Voice Agent (Call Agent)
-  "lO1Z5m781nQe3HsPYUTch", // Blog Creator
   "ETQm3I9t8ypv6V7eYAVyv", // Purchases
+  "lO1Z5m781nQe3HsPYUTch", // Blog Creator
   "LGzQHIALne_MHAHWtdBIQ", // New Customer
 ];
 
