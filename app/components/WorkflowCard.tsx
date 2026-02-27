@@ -776,7 +776,7 @@ export default function WorkflowCard({
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Revenue Tracked
+              Purchases from Calls
             </p>
             <p className="text-xs text-gray-400 italic">
               Purchases made after AI Voice Agent calls
@@ -810,7 +810,7 @@ export default function WorkflowCard({
           {purchaseHistory && purchaseHistory.length > 0 && (
             <div className="mt-4 pt-4 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                Revenue — Last 6 Months
+                Revenue from Calls — Last 6 Months
               </p>
               <PurchaseLineChart data={purchaseHistory} />
             </div>

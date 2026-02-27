@@ -12,9 +12,11 @@ export interface PurchaseStats {
   allTimeCount: number;
 }
 
-function parsePurchase(val: string): number {
+function parsePurchasePostCall(val: string): number {
   if (!val) return 0;
-  const n = parseFloat(val.replace(/[^0-9.]/g, ""));
+  const v = val.trim().toLowerCase();
+  if (v === "no" || v === "false" || v === "0" || v === "") return 0;
+  const n = parseFloat(v.replace(/[^0-9.]/g, ""));
   return isNaN(n) ? 0 : n;
 }
 
@@ -30,7 +32,7 @@ export async function GET() {
     let thisMonth = 0, thisMonthCount = 0;
 
     for (const row of rows) {
-      const amount = parsePurchase(row["Purchases"] || "");
+      const amount = parsePurchasePostCall(row["purchase_post_call"] || "");
       if (amount <= 0) continue;
 
       allTime += amount;
@@ -40,6 +42,7 @@ export async function GET() {
       if (!dateStr) continue;
       let d: Date;
       try { d = new Date(dateStr); } catch { continue; }
+      if (isNaN(d.getTime())) continue;
 
       if (d >= threeMonthStart) {
         last3Months += amount;

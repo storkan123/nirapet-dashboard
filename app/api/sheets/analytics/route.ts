@@ -84,8 +84,10 @@ function computeAggregates(rows: Record<string, string>[]) {
 
   let totalPurchasesPostCall = 0;
   answered.forEach((r) => {
-    const v = (r["purchase_post_call"] || "").toLowerCase();
-    if (v === "yes" || v === "true" || v === "1") totalPurchasesPostCall++;
+    const v = (r["purchase_post_call"] || "").trim();
+    if (!v || v.toLowerCase() === "no" || v.toLowerCase() === "false" || v === "0") return;
+    const n = parseFloat(v.replace(/[^0-9.]/g, ""));
+    if (!isNaN(n) && n > 0) totalPurchasesPostCall++;
   });
 
   return {
@@ -266,8 +268,11 @@ export async function GET(request: NextRequest) {
       let purchases = 0;
       dayRows.forEach((r) => {
         if ((r["interest_level"] || "").toLowerCase() === "hot") hotLeads++;
-        const pv = (r["purchase_post_call"] || "").toLowerCase();
-        if (pv === "yes" || pv === "true" || pv === "1") purchases++;
+        const pv = (r["purchase_post_call"] || "").trim();
+        if (pv && pv.toLowerCase() !== "no" && pv.toLowerCase() !== "false" && pv !== "0") {
+          const pn = parseFloat(pv.replace(/[^0-9.]/g, ""));
+          if (!isNaN(pn) && pn > 0) purchases++;
+        }
       });
       return {
         date: formatDateShort(new Date(dateKey + "T00:00:00")),

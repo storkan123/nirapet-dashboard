@@ -9,9 +9,11 @@ export interface MonthlyPurchase {
   count: number;
 }
 
-function parsePurchase(val: string): number {
+function parsePurchasePostCall(val: string): number {
   if (!val) return 0;
-  const n = parseFloat(val.replace(/[^0-9.]/g, ""));
+  const v = val.trim().toLowerCase();
+  if (v === "no" || v === "false" || v === "0" || v === "") return 0;
+  const n = parseFloat(v.replace(/[^0-9.]/g, ""));
   return isNaN(n) ? 0 : n;
 }
 
@@ -33,7 +35,7 @@ export async function GET() {
     }
 
     for (const row of rows) {
-      const amount = parsePurchase(row["Purchases"] || "");
+      const amount = parsePurchasePostCall(row["purchase_post_call"] || "");
       if (amount <= 0) continue;
 
       const dateStr = row["Date"] || row["call_date"] || "";
