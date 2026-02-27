@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import SheetTable from "@/app/components/SheetTable";
+import InsightsReport, { InsightsData } from "@/app/components/InsightsReport";
 import { SheetRow } from "@/app/lib/sheets";
 
 const REFRESH_INTERVAL = 30_000; // 30 seconds
@@ -81,45 +82,72 @@ function currentMonthLabel(): string {
 }
 
 export default function DataPage() {
-  const [activeTab, setActiveTab] = useState<"customers" | "content">(
-    "customers"
+  const [activeTab, setActiveTab] = useState<"insights" | "customers" | "content">(
+    "insights"
   );
+
+  // Consumer Insights state (fetched independently, always refreshed)
+  const [insights, setInsights] = useState<InsightsData | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+
+  // Sheet data state
   const [customers, setCustomers] = useState<SheetRow[]>([]);
   const [content, setContent] = useState<SheetRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async (isInitial = false) => {
+  // --- Insights fetch ---
+  const loadInsights = useCallback(async (isInitial = false) => {
+    if (isInitial) setInsightsLoading(true);
+    try {
+      const res = await fetch("/api/docs");
+      const json = await res.json();
+      if (json.success) {
+        setInsights({ month: json.month, sections: json.sections });
+      }
+    } catch {
+      // silently ignore refresh errors; keep showing last data
+    } finally {
+      if (isInitial) setInsightsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInsights(true);
+    const interval = setInterval(() => loadInsights(false), REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [loadInsights]);
+
+  // --- Sheet data fetch (on-demand per active tab) ---
+  const loadSheet = useCallback(async (isInitial = false) => {
+    if (activeTab === "insights") return;
     if (isInitial) {
-      setLoading(true);
-      setError(null);
+      setSheetLoading(true);
+      setSheetError(null);
     }
     try {
       const res = await fetch(`/api/sheets?sheet=${activeTab}`);
       const json = await res.json();
       if (json.success) {
-        if (activeTab === "customers") {
-          setCustomers(json.data);
-        } else {
-          setContent(json.data);
-        }
-        setError(null);
+        if (activeTab === "customers") setCustomers(json.data);
+        else setContent(json.data);
+        setSheetError(null);
       } else {
-        setError(json.error);
+        setSheetError(json.error);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      setSheetError(err instanceof Error ? err.message : "Failed to load");
     } finally {
-      if (isInitial) setLoading(false);
+      if (isInitial) setSheetLoading(false);
     }
   }, [activeTab]);
 
   useEffect(() => {
-    load(true);
-    const interval = setInterval(() => load(false), REFRESH_INTERVAL);
+    loadSheet(true);
+    const interval = setInterval(() => loadSheet(false), REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [loadSheet]);
 
   // Auto-open current month when customers load
   useEffect(() => {
@@ -153,16 +181,31 @@ export default function DataPage() {
             Live data from your Google Sheets
           </p>
         </div>
-        <p className="text-xs text-gray-400">
-          Auto-refreshes every 30s
-        </p>
+        <p className="text-xs text-gray-400">Auto-refreshes every 30s</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex border-b border-gray-200">
+        {/* Tab bar */}
+        <div className="flex border-b border-gray-200 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab("insights")}
+            className={`px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
+              activeTab === "insights"
+                ? "text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50/50"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Consumer Insights
+            {insights && insights.sections.length > 0 && (
+              <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                {insights.month || "Report"}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setActiveTab("customers")}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === "customers"
                 ? "text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50/50"
                 : "text-gray-500 hover:text-gray-700"
@@ -175,9 +218,10 @@ export default function DataPage() {
               </span>
             )}
           </button>
+
           <button
             onClick={() => setActiveTab("content")}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === "content"
                 ? "text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50/50"
                 : "text-gray-500 hover:text-gray-700"
@@ -192,97 +236,112 @@ export default function DataPage() {
           </button>
         </div>
 
-        <div className="p-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="inline-block w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-500">Loading data...</p>
+        {/* Tab panels */}
+        {activeTab === "insights" ? (
+          <InsightsReport data={insights} loading={insightsLoading} />
+        ) : (
+          <div className="p-4">
+            {sheetLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="inline-block w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+                  <p className="text-gray-500">Loading data...</p>
+                </div>
               </div>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-              <p className="text-red-700 font-medium">Failed to load data</p>
-              <p className="text-red-500 text-sm mt-1">{error}</p>
-            </div>
-          ) : activeTab === "customers" ? (
-            groups.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <p className="text-lg mb-1">No data available</p>
-                <p className="text-sm">Google Sheets credentials may not be configured.</p>
+            ) : sheetError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                <p className="text-red-700 font-medium">Failed to load data</p>
+                <p className="text-red-500 text-sm mt-1">{sheetError}</p>
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {groups.map(({ label, rows }) => {
-                  const isCurrentMonth = label === thisMonth;
-                  const isOpen = openMonths.has(label);
-                  return (
-                    <div
-                      key={label}
-                      className={`rounded-xl border overflow-hidden ${
-                        isCurrentMonth ? "border-emerald-200" : "border-gray-200"
-                      }`}
-                    >
-                      {/* Month header */}
-                      <button
-                        onClick={() => toggleMonth(label)}
-                        className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
+            ) : activeTab === "customers" ? (
+              groups.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-lg mb-1">No data available</p>
+                  <p className="text-sm">
+                    Google Sheets credentials may not be configured.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {groups.map(({ label, rows }) => {
+                    const isCurrentMonth = label === thisMonth;
+                    const isOpen = openMonths.has(label);
+                    return (
+                      <div
+                        key={label}
+                        className={`rounded-xl border overflow-hidden ${
                           isCurrentMonth
-                            ? "bg-emerald-50 hover:bg-emerald-100/70"
-                            : "bg-gray-50 hover:bg-gray-100"
+                            ? "border-emerald-200"
+                            : "border-gray-200"
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-block transition-transform text-xs ${
-                              isOpen ? "rotate-90" : ""
-                            } ${isCurrentMonth ? "text-emerald-600" : "text-gray-400"}`}
-                          >
-                            ▶
-                          </span>
-                          <span
-                            className={`font-semibold text-sm ${
-                              isCurrentMonth ? "text-emerald-700" : "text-gray-600"
-                            }`}
-                          >
-                            {label}
-                          </span>
-                          {isCurrentMonth && (
-                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                              Current
+                        {/* Month header */}
+                        <button
+                          onClick={() => toggleMonth(label)}
+                          className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
+                            isCurrentMonth
+                              ? "bg-emerald-50 hover:bg-emerald-100/70"
+                              : "bg-gray-50 hover:bg-gray-100"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-block transition-transform text-xs ${
+                                isOpen ? "rotate-90" : ""
+                              } ${
+                                isCurrentMonth
+                                  ? "text-emerald-600"
+                                  : "text-gray-400"
+                              }`}
+                            >
+                              ▶
                             </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-400">
-                          {rows.length} record{rows.length !== 1 ? "s" : ""}
-                        </span>
-                      </button>
+                            <span
+                              className={`font-semibold text-sm ${
+                                isCurrentMonth
+                                  ? "text-emerald-700"
+                                  : "text-gray-600"
+                              }`}
+                            >
+                              {label}
+                            </span>
+                            {isCurrentMonth && (
+                              <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {rows.length} record{rows.length !== 1 ? "s" : ""}
+                          </span>
+                        </button>
 
-                      {/* Rows */}
-                      {isOpen && (
-                        <div className="border-t border-gray-100">
-                          <SheetTable
-                            data={rows}
-                            columns={customerColumns}
-                            statusKey="call_status"
-                            statusColors={callStatusColors}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          ) : (
-            <SheetTable
-              data={content}
-              columns={contentColumns}
-              statusKey="Status"
-              statusColors={contentStatusColors}
-            />
-          )}
-        </div>
+                        {/* Rows */}
+                        {isOpen && (
+                          <div className="border-t border-gray-100">
+                            <SheetTable
+                              data={rows}
+                              columns={customerColumns}
+                              statusKey="call_status"
+                              statusColors={callStatusColors}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              <SheetTable
+                data={content}
+                columns={contentColumns}
+                statusKey="Status"
+                statusColors={contentStatusColors}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
