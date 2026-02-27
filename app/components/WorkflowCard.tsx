@@ -9,6 +9,8 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -42,6 +44,339 @@ function timeAgo(dateStr: string): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// ── % Change Badge ──────────────────────────────────────────────────────────
+function ChangeBadge({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0) return null;
+  const pctChange = Math.round(((current - previous) / previous) * 100);
+  if (pctChange === 0) return null;
+  const isUp = pctChange > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs font-semibold ${
+        isUp ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+      }`}
+    >
+      {isUp ? "↑" : "↓"} {Math.abs(pctChange)}%
+    </span>
+  );
+}
+
+// ── Hero Metric Chart (Databox-style) ───────────────────────────────────────
+function HeroMetricChart({
+  title,
+  rangeLabel,
+  heroValue,
+  heroSuffix,
+  currentTotal,
+  previousTotal,
+  previousLabel,
+  accentColor,
+  data,
+  dataKeys,
+  legendLabels,
+}: {
+  title: string;
+  rangeLabel: string;
+  heroValue: string;
+  heroSuffix?: string;
+  currentTotal: number;
+  previousTotal: number;
+  previousLabel?: string;
+  accentColor: string;
+  data: Record<string, unknown>[];
+  dataKeys: { current: string; previous: string };
+  legendLabels: { current: string; previous: string };
+}) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-5 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          {title}
+        </p>
+        <p className="text-xs text-gray-400">{rangeLabel}</p>
+      </div>
+
+      {/* Hero number + badge */}
+      <div className="flex items-baseline gap-3 mb-1">
+        <span className="text-4xl font-bold text-gray-900">
+          {heroValue}
+          {heroSuffix && (
+            <span className="text-lg font-medium text-gray-400 ml-1">{heroSuffix}</span>
+          )}
+        </span>
+        <ChangeBadge current={currentTotal} previous={previousTotal} />
+      </div>
+      {previousLabel && previousTotal > 0 && (
+        <p className="text-xs text-gray-400 mb-3">
+          Comparison period: {previousTotal}{previousLabel}
+        </p>
+      )}
+
+      {/* Area chart */}
+      {data.length > 1 ? (
+        <ResponsiveContainer width="100%" height={160}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`fill-${title.replace(/\s/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accentColor} stopOpacity={0.2} />
+                <stop offset="100%" stopColor={accentColor} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{
+                fontSize: 12,
+                border: "none",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                borderRadius: 8,
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey={dataKeys.current}
+              stroke={accentColor}
+              strokeWidth={2.5}
+              fill={`url(#fill-${title.replace(/\s/g, "")})`}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+            />
+            <Area
+              type="monotone"
+              dataKey={dataKeys.previous}
+              stroke="#d1d5db"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              fill="none"
+              dot={false}
+              activeDot={{ r: 3, strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+          Not enough data for chart
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex gap-4 mt-2 justify-center">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-3 h-0.5 rounded" style={{ backgroundColor: accentColor }} />
+          {legendLabels.current}
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <span className="w-3 h-0.5 rounded border-t border-dashed border-gray-400" />
+          {legendLabels.previous}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Two-Line Hero Chart (Hot Leads + Purchases) ────────────────────────────
+function DualMetricChart({
+  title,
+  rangeLabel,
+  hero1Value,
+  hero1Label,
+  hero2Value,
+  hero2Label,
+  color1,
+  color2,
+  data,
+}: {
+  title: string;
+  rangeLabel: string;
+  hero1Value: number;
+  hero1Label: string;
+  hero2Value: number;
+  hero2Label: string;
+  color1: string;
+  color2: string;
+  data: { date: string; hotLeads: number; purchases: number }[];
+}) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-5 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          {title}
+        </p>
+        <p className="text-xs text-gray-400">{rangeLabel}</p>
+      </div>
+
+      {/* Hero numbers */}
+      <div className="flex items-baseline gap-4 mb-3">
+        <div>
+          <span className="text-4xl font-bold text-gray-900">{hero1Value}</span>
+          <span className="text-xs text-gray-400 ml-1.5">{hero1Label}</span>
+        </div>
+        <div className="text-gray-300">|</div>
+        <div>
+          <span className="text-4xl font-bold text-gray-900">{hero2Value}</span>
+          <span className="text-xs text-gray-400 ml-1.5">{hero2Label}</span>
+        </div>
+      </div>
+
+      {/* Line chart */}
+      {data.length > 1 ? (
+        <ResponsiveContainer width="100%" height={160}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="fillHotLeads" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color1} stopOpacity={0.15} />
+                <stop offset="100%" stopColor={color1} stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="fillPurchases" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color2} stopOpacity={0.15} />
+                <stop offset="100%" stopColor={color2} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={{
+                fontSize: 12,
+                border: "none",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                borderRadius: 8,
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="hotLeads"
+              name="Hot Leads"
+              stroke={color1}
+              strokeWidth={2.5}
+              fill="url(#fillHotLeads)"
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="purchases"
+              name="Purchases"
+              stroke={color2}
+              strokeWidth={2.5}
+              fill="url(#fillPurchases)"
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+          Not enough data for chart
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex gap-4 mt-2 justify-center">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-3 h-0.5 rounded" style={{ backgroundColor: color1 }} />
+          {hero1Label}
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-3 h-0.5 rounded" style={{ backgroundColor: color2 }} />
+          {hero2Label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── KPI Tile (small metric with % change badge) ────────────────────────────
+function KpiTile({
+  label,
+  value,
+  suffix,
+  current,
+  previous,
+}: {
+  label: string;
+  value: string;
+  suffix?: string;
+  current: number;
+  previous: number;
+}) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+        {label}
+      </p>
+      <div className="flex items-baseline gap-2">
+        <span className="text-3xl font-bold text-gray-900">
+          {value}
+          {suffix && <span className="text-base font-medium text-gray-400">{suffix}</span>}
+        </span>
+      </div>
+      <div className="mt-1.5">
+        <ChangeBadge current={current} previous={previous} />
+      </div>
+    </div>
+  );
+}
+
+// ── Objections Overview Table (Databox "Campaigns Overview" style) ──────────
+function ObjectionsTable({
+  items,
+}: {
+  items: { label: string; count: number }[];
+}) {
+  const total = items.reduce((sum, o) => sum + o.count, 0);
+  if (items.length === 0)
+    return <p className="text-sm text-gray-400">No objections recorded</p>;
+
+  return (
+    <div className="w-full">
+      {/* Header */}
+      <div className="grid grid-cols-[auto_1fr_60px_60px] gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2 border-b border-gray-200">
+        <span>#</span>
+        <span>Objection</span>
+        <span className="text-right">Count</span>
+        <span className="text-right">%</span>
+      </div>
+      {/* Rows */}
+      {items.map((o, i) => (
+        <div
+          key={o.label}
+          className="grid grid-cols-[auto_1fr_60px_60px] gap-2 py-2.5 border-b border-gray-100 last:border-0 items-center"
+        >
+          <span className="text-xs text-gray-400 w-4">{i + 1}</span>
+          <span className="text-sm text-gray-700 font-medium truncate">{o.label}</span>
+          <span className="text-sm text-gray-900 font-semibold text-right">{o.count}</span>
+          <span className="text-xs text-gray-400 text-right">
+            {total > 0 ? Math.round((o.count / total) * 100) : 0}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ── Sentiment Donut ──────────────────────────────────────────────────────────
@@ -515,7 +850,87 @@ export default function WorkflowCard({
 
           {analytics && (
             <>
-              {/* KPI boxes */}
+              {/* ── Databox-style hero charts ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <HeroMetricChart
+                  title="Purchase Intent Score"
+                  rangeLabel={analytics.rangeLabel}
+                  heroValue={
+                    analytics.avgPurchaseIntent > 0
+                      ? analytics.avgPurchaseIntent.toFixed(1)
+                      : "—"
+                  }
+                  heroSuffix="/10"
+                  currentTotal={analytics.avgPurchaseIntent}
+                  previousTotal={analytics.previousPeriod?.avgPurchaseIntent ?? 0}
+                  previousLabel=""
+                  accentColor="#f59e0b"
+                  data={analytics.dailyIntent}
+                  dataKeys={{ current: "current", previous: "previous" }}
+                  legendLabels={{
+                    current: analytics.rangeLabel,
+                    previous: "Previous Period",
+                  }}
+                />
+                <DualMetricChart
+                  title="Hot Leads & Purchases"
+                  rangeLabel={analytics.rangeLabel}
+                  hero1Value={analytics.interestBreakdown.hot}
+                  hero1Label="Hot Leads"
+                  hero2Value={analytics.totalPurchasesPostCall}
+                  hero2Label="Purchased"
+                  color1="#f97316"
+                  color2="#10b981"
+                  data={analytics.dailyHotLeads}
+                />
+              </div>
+
+              {/* ── KPI tiles + Objections table ── */}
+              <div className="grid grid-cols-2 md:grid-cols-[1fr_1fr_2fr] gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-4 col-span-2 md:col-span-2">
+                  <KpiTile
+                    label="Answer Rate"
+                    value={`${analytics.answerRate}`}
+                    suffix="%"
+                    current={analytics.answerRate}
+                    previous={analytics.previousPeriod?.answerRate ?? 0}
+                  />
+                  <KpiTile
+                    label="Avg Intent"
+                    value={
+                      analytics.avgPurchaseIntent > 0
+                        ? analytics.avgPurchaseIntent.toFixed(1)
+                        : "—"
+                    }
+                    current={analytics.avgPurchaseIntent}
+                    previous={analytics.previousPeriod?.avgPurchaseIntent ?? 0}
+                  />
+                  <KpiTile
+                    label="Interested %"
+                    value={`${analytics.interestedPct}`}
+                    suffix="%"
+                    current={analytics.interestedPct}
+                    previous={analytics.previousPeriod?.interestedPct ?? 0}
+                  />
+                  <KpiTile
+                    label="Objections"
+                    value={`${analytics.objectionCount}`}
+                    current={analytics.objectionCount}
+                    previous={analytics.previousPeriod?.objectionCount ?? 0}
+                  />
+                </div>
+                <div className="bg-gray-50 rounded-xl p-5 col-span-2 md:col-span-1">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Top Objections
+                    </p>
+                    <p className="text-xs text-gray-400">{analytics.rangeLabel}</p>
+                  </div>
+                  <ObjectionsTable items={analytics.topObjections} />
+                </div>
+              </div>
+
+              {/* ── Original KPI boxes ── */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-gray-900">
